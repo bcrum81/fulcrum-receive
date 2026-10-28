@@ -90,7 +90,7 @@ function render() {
     const cap = document.createElement('label');
     cap.className = 'cap';
     cap.textContent = 'When this item is received';
-    field.append(cap, itemField(rule.trigger, 'Item number, e.g. ITM-BUCKLE-V2-SINGLE-POINT-FEMALE'));
+    field.append(cap, itemField(rule.trigger, 'Item number, e.g. BUCKLE-100'));
     const del = document.createElement('button');
     del.className = 'danger';
     del.textContent = 'Remove';
