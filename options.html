@@ -13,8 +13,6 @@
     button.primary { background: #1d2939; border-color: #1d2939; color: #fff; }
     button.link { border: 0; background: none; color: #175cd3; padding: 4px 0; }
     button.danger { color: #b42318; }
-    .tokenRow { display: flex; gap: 8px; align-items: center; }
-    .tokenRow input { flex: 1; }
     .rule { border: 1px solid #eaecf0; border-radius: 10px; padding: 14px 16px; margin: 12px 0; background: #fcfcfd; }
     .ruleHead { display: flex; gap: 10px; align-items: flex-start; }
     .ruleHead .field { flex: 1; }
@@ -29,7 +27,7 @@
     .x:hover { color: #b42318; }
     .bar { position: sticky; bottom: 0; background: #fff; padding: 12px 0; border-top: 1px solid #eaecf0;
       display: flex; gap: 10px; align-items: center; margin-top: 20px; }
-    #status, #tokenStatus { font-size: 13px; }
+    #status { font-size: 13px; }
     .ok { color: #067647; } .bad { color: #b42318; }
   </style>
 </head>
@@ -39,15 +37,8 @@
     components, quantity = received quantity × multiplier. You can change or remove lines there before
     clicking <b>Receive</b>.</p>
 
-  <h2>Fulcrum API token</h2>
-  <p class="hint">From Fulcrum: System Data → Advanced → Public API Setup. It's stored only in this
-    browser on this computer and is used to look up items and add inventory.</p>
-  <div class="tokenRow">
-    <input id="token" type="password" placeholder="Paste API token" autocomplete="off">
-    <button id="saveToken">Save token</button>
-    <button id="testToken">Test</button>
-  </div>
-  <div id="tokenStatus"></div>
+  <p class="hint">Everything runs as whoever is signed in to Fulcrum; no API token is needed. Keep a
+    Fulcrum tab open while you edit this page so item numbers can be checked.</p>
 
   <h2>Receiving items</h2>
   <div id="rules"></div>

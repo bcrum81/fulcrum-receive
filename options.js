@@ -1,12 +1,13 @@
-// Options page: the API token (chrome.storage.local) and the receiving rules
-// (chrome.storage.sync, so they follow the Chrome profile).
+// Options page: the receiving rules, kept in chrome.storage.sync so they
+// follow the Chrome profile.
 //
 // Stored rule shape:
 //   { trigger: { itemId, number, description },
 //     components: [{ itemId, number, description, multiplier }] }
 //
-// Item numbers are looked up in Fulcrum as they're typed so the rule stores
-// item ids; receiving lines are matched on the id.
+// Item numbers are looked up in Fulcrum as they're typed (through an open
+// Fulcrum tab, see background.js) so the rule stores item ids; receiving
+// lines are matched on the id.
 
 const $ = (id) => document.getElementById(id);
 let rules = [];
@@ -171,35 +172,13 @@ async function save() {
   }
 }
 
-async function testToken() {
-  setStatus($('tokenStatus'), 'Testing…');
-  const res = await chrome.runtime.sendMessage({ type: 'validate' });
-  if (res && res.ok) {
-    const who = res.info && (res.info.name || res.info.domain);
-    setStatus($('tokenStatus'), `✓ Token works${who ? ` (${who})` : ''}.`, true);
-  } else {
-    setStatus($('tokenStatus'), (res && res.error) || 'Test failed', false);
-  }
-}
-
-$('saveToken').addEventListener('click', async () => {
-  await chrome.storage.local.set({ apiToken: $('token').value.trim() });
-  testToken();
-});
-$('testToken').addEventListener('click', testToken);
 $('addRule').addEventListener('click', () => {
   rules.push({ trigger: blankItem(), components: [{ ...blankItem(), multiplier: 1 }] });
   render();
 });
 $('save').addEventListener('click', save);
 
-(async () => {
-  const [{ apiToken }, { rules: stored }] = await Promise.all([
-    chrome.storage.local.get({ apiToken: '' }),
-    chrome.storage.sync.get({ rules: [] }),
-  ]);
-  $('token').value = apiToken;
-  if (apiToken) setStatus($('tokenStatus'), 'Token saved.', true);
+chrome.storage.sync.get({ rules: [] }).then(({ rules: stored }) => {
   rules = stored;
   render();
-})();
+});

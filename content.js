@@ -1,14 +1,25 @@
 // After Confirm Receipt succeeds on a Fulcrum receiving record, opens a window
 // listing the companion components configured for the items just received,
 // with quantities filled in from the multipliers. Receive adds each one to
-// inventory through the Fulcrum API (background.js).
+// inventory with the signed-in user's Fulcrum session, through hook.js.
 //
 // hook.js (page world) reports the receiving record's line items when the
-// page loads and the quantities sent by each successful Confirm Receipt.
+// page loads and the quantities sent by each successful Confirm Receipt, and
+// makes API calls for this script. Fulcrum's internal API, as used by its UI
+// (checked 2026-10-28):
+//   GET  /api/items/GetByNumberLatestRevision?number=&ignoreCase=true
+//        the item, or 500 with an empty body when there is no such number
+//   GET  /api/items/{id}/default-inventory-unit-values?quantity=
+//        the unit values the item page's Add Inventory pre-fills
+//        (source "None" when the company setting is off)
+//   POST /api/v2/inventory/bulk-process-inventory-events
+//        [event] in the shape the item page's Add Inventory sends
 
 (function () {
   const SOURCE = 'fulcrum-receive-hook';
   const records = new Map(); // receiving record id -> { name, lines: Map(lineItemId -> line) }
+  const calls = new Map(); // call id -> resolve
+  let nextCall = 1;
   let dialog = null;
 
   window.addEventListener('message', (e) => {
@@ -18,7 +29,88 @@
       records.set(data.id, { name: data.name, lines: new Map(data.lineItems.map((l) => [l.id, l])) });
     } else if (type === 'confirmed') {
       onConfirmed(data).catch((err) => toast(`Component receiving failed: ${err.message || err}`, true));
+    } else if (type === 'result' && calls.has(data.id)) {
+      calls.get(data.id)(data);
+      calls.delete(data.id);
     }
+  });
+
+  function api(method, path, body) {
+    return new Promise((resolve, reject) => {
+      const id = nextCall++;
+      const timer = setTimeout(() => { calls.delete(id); reject(new Error('Fulcrum did not answer in time')); }, 30000);
+      calls.set(id, (res) => {
+        clearTimeout(timer);
+        if (!res.ok) reject(new Error(res.error));
+        else if (res.status === 401) reject(new Error('Fulcrum session expired. Reload the page and sign in.'));
+        else resolve(res);
+      });
+      window.postMessage({ source: 'fulcrum-receive-content', type: 'call', id, request: { method, path, body } }, location.origin);
+    });
+  }
+
+  function failure(res, what) {
+    const b = res.body;
+    const detail = (b && (b.title || b.message || b.detail || (b.errors && JSON.stringify(b.errors)))) || res.text;
+    return new Error(`${what} (${res.status})${detail ? ': ' + String(detail).slice(0, 200) : ''}`);
+  }
+
+  async function getItem(number) {
+    const wanted = String(number || '').trim();
+    const res = await api('GET', `/api/items/GetByNumberLatestRevision?number=${encodeURIComponent(wanted)}&ignoreCase=true`);
+    const item = res.body;
+    if (res.status === 200 && item && item.id && !(item.details && item.details.isArchived)) return item;
+    if (res.status === 200 || res.status === 404 || (res.status === 500 && !res.text)) {
+      throw new Error(`No active item numbered "${wanted}"`);
+    }
+    throw failure(res, `Looking up ${wanted} failed`);
+  }
+
+  async function findItem(number) {
+    const item = await getItem(number);
+    return { itemId: item.id, number: item.number, description: item.description || '' };
+  }
+
+  async function receiveItem({ number, quantity, note }) {
+    // Looked up again here so the latest revision, its GL code and its
+    // default location are used even if they changed since setup.
+    const item = await getItem(number);
+    let values = {};
+    try {
+      const res = await api('GET', `/api/items/${item.id}/default-inventory-unit-values?quantity=${quantity}`);
+      if (res.status === 200 && res.body && res.body.source && res.body.source !== 'None') values = res.body;
+    } catch (_) { /* leave the values blank, as Add Inventory does */ }
+    const num = (v) => (v == null || v === '' ? null : Number(v));
+    const location = item.item_Inventory && item.item_Inventory.defaultInventoryLocation;
+    const event = {
+      type: 'Receive',
+      secondaryType: 'Receive',
+      source: { type: 'Item', url: `items/${item.id}`, name: item.number },
+      payload: {
+        itemId: item.id,
+        quantity,
+        lotNumber: null,
+        locationId: (location && location.id) || null,
+        accountedMaterialValues: [{ glCode: (item.details && item.details.glCode) || null, value: num(values.materialValue) }],
+        laborValue: num(values.laborValue),
+        machineValue: num(values.machineValue),
+        outsideProcessingValue: num(values.outsideProcessingValue),
+        expirationDate: null,
+        note,
+        actionDate: new Date().toISOString(),
+      },
+    };
+    const res = await api('POST', '/api/v2/inventory/bulk-process-inventory-events', [event]);
+    if (res.status < 200 || res.status >= 300) throw failure(res, 'Fulcrum refused the inventory receipt');
+  }
+
+  // The options page looks item numbers up through an open Fulcrum tab.
+  chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+    if (!msg || msg.type !== 'findItem') return false;
+    findItem(msg.number)
+      .then((item) => sendResponse({ ok: true, item }))
+      .catch((err) => sendResponse({ ok: false, error: err.message || String(err) }));
+    return true;
   });
 
   function round(n) {
@@ -221,18 +313,19 @@
         const note = `Received with ${receiptName} (${r.c.from.join(' + ')}) by the Fulcrum Receive Components extension`;
         let res;
         try {
-          res = await chrome.runtime.sendMessage({ type: 'receive', itemId: r.c.itemId, quantity, note });
+          await receiveItem({ number: r.c.number, quantity, note });
+          res = { ok: true };
         } catch (err) {
-          res = { ok: false, error: chrome.runtime?.id ? err.message : 'extension was updated; reload this page' };
+          res = { ok: false, error: err.message || String(err) };
         }
-        if (res && res.ok) {
+        if (res.ok) {
           r.done = true;
           r.row.classList.add('done');
           r.status.className = 'status ok';
           r.status.textContent = `✓ Received ${fmt(quantity)} into inventory`;
           toast(`✓ ${r.c.number}: received ${fmt(quantity)} into inventory`);
         } else {
-          const error = (res && res.error) || 'unknown error';
+          const error = res.error || 'unknown error';
           r.input.disabled = false;
           r.remove.disabled = false;
           r.status.className = 'status err';

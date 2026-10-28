@@ -24,45 +24,57 @@ Example: receive 10 × `ITM-BUCKLE-V2-SINGLE-POINT-FEMALE`, set up with
 
 1. In Chrome, open `chrome://extensions`, turn on **Developer mode**, click
    **Load unpacked**, and pick this folder (the one with `manifest.json`).
-2. Open the extension's **Details → Extension options**.
-3. Paste a Fulcrum **API token** (Fulcrum: System Data → Advanced → Public API
-   Setup), then click **Save token**. It should say *Token works*. The token is
-   kept only in this browser on this computer (`chrome.storage.local`).
-4. Click **+ Add receiving item**. Type the received item's number, then
-   for each component enter its item number and the quantity per 1 received.
-   Use **+ Add another component** for more. Item numbers are checked against
-   Fulcrum as you type, and a ✓ shows the description. Click **Save
-   settings**. These rules sync with your Chrome profile.
-5. **Reload any open Fulcrum tabs.** This also applies after every update of
+2. **Reload any open Fulcrum tabs.** This also applies after every update of
    the extension.
+3. With a Fulcrum tab open and signed in, open the extension's **Details →
+   Extension options**. Click **+ Add receiving item** and type the received
+   item's number. Then, for each component, enter its item number and the
+   quantity per 1 received. Use **+ Add another component** for more. Item
+   numbers are checked against Fulcrum through the open tab, and a ✓ shows
+   the description. Click **Save settings**. These rules sync with your Chrome
+   profile.
+
+No API token is needed. Every call is made as whoever is signed in to Fulcrum
+in that tab, so Fulcrum's own permissions apply. A user who can't add
+inventory in Fulcrum can't add it here either. Fulcrum records the inventory
+events under that user.
 
 ## How it works
 
-- `hook.js` runs in the page's own JavaScript world. It watches two of
-  Fulcrum's internal API calls without changing them:
-  `ReceivingEditPage/LoadReceivingEditPageQuery` (line item → item id) and
-  `ReceivingEditPage/SaveReceivingEditPageQueryCommand`. That second call is
-  used by both **Save** (`savingOnly: true`) and **Confirm Receipt**
-  (`savingOnly: false`). The quantity received on each line is the sum of
-  `lineItemUpdates[].lotUpdates[].quantityReceived`. These are Fulcrum
-  internals, not a public API, so a Fulcrum UI update could break detection.
-  If the window stops appearing, check here first.
-- `content.js` matches received lines to your rules by item id (and by item
-  number as a fallback) and shows the window.
-- `background.js` calls the public API at `https://api.fulcrumpro.com`:
-  `POST /api/items/list` to look up item numbers, and
-  `POST /api/inventory/receive` (`secondaryType: "receive"`) to add the
-  component inventory.
+- `hook.js` runs in the page's own JavaScript world. It watches Fulcrum's own
+  requests without changing them:
+  - It keeps the `Authorization` header Fulcrum sends to
+    `go-internal-api.fulcrumpro.com`, so it can make calls as the same user.
+  - `ReceivingEditPage/LoadReceivingEditPageQuery` gives the line items and
+    their item ids.
+  - `ReceivingEditPage/SaveReceivingEditPageQueryCommand` is used by both
+    **Save** (`savingOnly: true`) and **Confirm Receipt** (`savingOnly:
+    false`). The quantity received on each line is the sum of
+    `lineItemUpdates[].lotUpdates[].quantityReceived`.
+- `content.js` matches received lines to your rules (by item id, with item
+  number as a fallback), shows the window, and receives each component the
+  way the item page's **Add Inventory** does:
+  - `GET /api/items/GetByNumberLatestRevision` gets the latest revision, its
+    GL code and its default location.
+  - `GET /api/items/{id}/default-inventory-unit-values` gets the unit values
+    Add Inventory would pre-fill. These are blank while Fulcrum's
+    "default manual inventory unit values" setting is off, which it is for
+    Henry Holsters as of 2026-10-28.
+  - `POST /api/v2/inventory/bulk-process-inventory-events` sends one
+    `Receive`/`Receive` event per component.
+- `background.js` passes item lookups from the options page to an open
+  Fulcrum tab.
 
-Components are received with **no location and no unit cost**. They go to
-the default location at $0 value, the same as the shop's check-in app. If
-these components need a cost, that's a follow-up.
+These are Fulcrum's internal endpoints (what its own UI calls), not the
+public API, so a Fulcrum update could break them. If the window stops
+appearing or receiving fails, check here first. Shapes were checked against
+Fulcrum's UI code on 2026-10-28.
 
 ## Files
 
-- `manifest.json`: Manifest V3. Runs on `*.fulcrumpro.com`. Its only other
-  host is `api.fulcrumpro.com`.
-- `hook.js`: watches the receiving API calls (page world).
-- `content.js`: the Receive components window and the messages.
-- `background.js`: Fulcrum public API calls.
-- `options.html` / `options.js`: the API token and the receiving items.
+- `manifest.json`: Manifest V3. Runs on `*.fulcrumpro.com`; no other hosts.
+- `hook.js`: watches Fulcrum's requests and makes API calls (page world).
+- `content.js`: the Receive components window, the messages and the
+  inventory calls.
+- `background.js`: passes options-page lookups to a Fulcrum tab.
+- `options.html` / `options.js`: the receiving items.
