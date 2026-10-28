@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Fulcrum Receive Components",
+  "version": "1.0.0",
+  "description": "After Confirm Receipt on a Fulcrum receiving record, offers to receive the configured companion components into inventory.",
+  "permissions": ["storage"],
+  "host_permissions": ["https://api.fulcrumpro.com/*"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["https://*.fulcrumpro.com/*"],
+      "js": ["hook.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://*.fulcrumpro.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "options_page": "options.html"
+}

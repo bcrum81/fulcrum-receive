@@ -1,0 +1,63 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Fulcrum Receive Components</title>
+  <style>
+    body { font: 14px/1.45 system-ui, sans-serif; color: #1d2939; margin: 24px auto; max-width: 820px; padding: 0 16px; }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    h2 { font-size: 16px; margin: 28px 0 8px; }
+    p.hint, .hint { color: #667085; font-size: 13px; margin: 4px 0; }
+    input { font: inherit; padding: 6px 8px; border: 1px solid #d0d5dd; border-radius: 6px; box-sizing: border-box; }
+    button { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid #d0d5dd; background: #fff; cursor: pointer; }
+    button.primary { background: #1d2939; border-color: #1d2939; color: #fff; }
+    button.link { border: 0; background: none; color: #175cd3; padding: 4px 0; }
+    button.danger { color: #b42318; }
+    .tokenRow { display: flex; gap: 8px; align-items: center; }
+    .tokenRow input { flex: 1; }
+    .rule { border: 1px solid #eaecf0; border-radius: 10px; padding: 14px 16px; margin: 12px 0; background: #fcfcfd; }
+    .ruleHead { display: flex; gap: 10px; align-items: flex-start; }
+    .ruleHead .field { flex: 1; }
+    label.cap { display: block; font-size: 12px; font-weight: 600; color: #475467; margin-bottom: 4px; }
+    .comp { display: grid; grid-template-columns: 1fr 120px 32px; gap: 10px; align-items: start; margin-top: 8px; }
+    .comps { margin: 12px 0 0 18px; padding-left: 14px; border-left: 3px solid #eaecf0; }
+    .item input { width: 100%; }
+    .comp input.mult { width: 100%; text-align: right; }
+    .found { font-size: 12px; color: #067647; margin-top: 2px; min-height: 16px; }
+    .found.err { color: #b42318; }
+    .x { border: 0; background: none; font-size: 20px; color: #98a2b3; padding: 4px; line-height: 1; }
+    .x:hover { color: #b42318; }
+    .bar { position: sticky; bottom: 0; background: #fff; padding: 12px 0; border-top: 1px solid #eaecf0;
+      display: flex; gap: 10px; align-items: center; margin-top: 20px; }
+    #status, #tokenStatus { font-size: 13px; }
+    .ok { color: #067647; } .bad { color: #b42318; }
+  </style>
+</head>
+<body>
+  <h1>Fulcrum Receive Components</h1>
+  <p class="hint">When <b>Confirm Receipt</b> receives one of the items below, a window opens with its
+    components, quantity = received quantity × multiplier. You can change or remove lines there before
+    clicking <b>Receive</b>.</p>
+
+  <h2>Fulcrum API token</h2>
+  <p class="hint">From Fulcrum: System Data → Advanced → Public API Setup. It's stored only in this
+    browser on this computer and is used to look up items and add inventory.</p>
+  <div class="tokenRow">
+    <input id="token" type="password" placeholder="Paste API token" autocomplete="off">
+    <button id="saveToken">Save token</button>
+    <button id="testToken">Test</button>
+  </div>
+  <div id="tokenStatus"></div>
+
+  <h2>Receiving items</h2>
+  <div id="rules"></div>
+  <button id="addRule">+ Add receiving item</button>
+
+  <div class="bar">
+    <button id="save" class="primary">Save settings</button>
+    <span id="status"></span>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>
